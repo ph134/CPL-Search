@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPL Search Tool</title>
+<style>
+  :root {
+    --primary: #0078d4;
+    --primary-dark: #005a9e;
+    --bg: #f5f6f7;
+    --card: #ffffff;
+    --border: #e1e4e8;
+    --text: #24292e;
+    --text-muted: #586069;
+    --highlight: #fff3cd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--primary);
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.12);
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header .status { font-size: 13px; opacity: .85; margin-left: auto; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+  /* --- Search bar --- */
+  .search-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .search-bar input[type=text] {
+    flex: 1;
+    min-width: 280px;
+    padding: 10px 14px;
+    font-size: 15px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .search-bar input[type=text]:focus { border-color: var(--primary); }
+  .search-bar select {
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  /* --- Results --- */
+  .results-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 220px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: #f0f2f5;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { color: var(--primary); }
+  thead th .sort-arrow { font-size: 11px; margin-left: 4px; }
+  thead th { position: relative; }
+  thead th .col-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+  }
+  thead th .col-resizer:hover { background: var(--primary); opacity: .4; }
+  tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tbody td.wrap-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+  }
+  tbody tr:hover { background: #f0f7ff; }
+
+  /* --- Sticky first column (Material #) --- */
+  .sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  thead th.sticky-col {
+    z-index: 3;
+  }
+  tbody td.sticky-col {
+    background: #fff;
+  }
+  tbody tr:hover td.sticky-col {
+    background: #f0f7ff;
+  }
+
+  mark { background: var(--highlight); padding: 1px 2px; border-radius: 2px; }
+  .cost-stale { color: #c96a6a; font-weight: 600; }
+  tr.row-obsolete td { background-color: #fdd; color: #b71c1c; }
+  tr.row-obsolete td.sticky-col { background-color: #fdd; }
+
+  /* --- Search tabs --- */
+  .search-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: -1px;
+    position: relative;
+    z-index: 1;
+  }
+  .search-tabs button {
+    padding: 8px 20px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    background: var(--bg);
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .search-tabs button.active {
+    background: var(--card);
+    color: var(--text);
+    font-weight: 600;
+    border-bottom: 1px solid var(--card);
+  }
+  .search-panel { display: none; }
+  .search-panel.active { display: flex; }
+  #multiPartPanel {
+    flex-direction: column;
+    gap: 10px;
+  }
+  #multiPartPanel textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    resize: vertical;
+  }
+  #multiPartPanel textarea:focus { border-color: var(--primary); }
+  #multiPartPanel .panel-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #multiPartPanel .btn-search {
+    padding: 8px 20px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #multiPartPanel .btn-search:hover { background: var(--primary-dark); }
+  #multiPartPanel .btn-clear {
+    padding: 8px 16px;
+    background: var(--card);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #multiPartCount { font-size: 12px; color: var(--text-muted); }
+
+  /* --- Inflation input --- */
+  .inflation-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+    font-size: 13px;
+  }
+  .inflation-bar label { font-weight: 600; white-space: nowrap; }
+  .inflation-bar input[type=number] {
+    width: 80px;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+  }
+  .inflation-bar input[type=number]:focus { border-color: var(--primary); }
+  .inflation-bar .hint { color: var(--text-muted); font-size: 12px; }
+
+  /* --- Export button --- */
+  .btn-export {
+    padding: 6px 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .btn-export:hover { background: var(--primary-dark); }
+  .btn-export:disabled { opacity: .4; cursor: default; }
+
+  /* --- Pagination --- */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 0;
+  }
+  .pagination button {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .pagination button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .pagination button:disabled { opacity: .4; cursor: default; }
+
+  /* --- Loading overlay --- */
+  #loadingOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,.9);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px;
+    z-index: 999; font-size: 16px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div>Loading 500,000+ records...</div>
+</div>
+
+<header>
+  <h1>CPL Search Tool</h1>
+  <span class="status" id="headerStatus">Loading...</span>
+</header>
+
+<div style="text-align:right;font-size:12px;color:#586069;padding:6px 24px 0;max-width:1400px;margin:0 auto;" id="dataRefreshed"></div>
+
+<div class="container">
+  <div class="search-tabs">
+    <button class="active" id="tabKeyword" onclick="switchTab('keyword')">Keyword Search</button>
+    <button id="tabMultiPart" onclick="switchTab('multipart')">Multi-Part Lookup</button>
+  </div>
+  <div class="search-bar">
+    <div id="keywordPanel" class="search-panel active">
+      <input type="text" id="searchInput" placeholder="Search keywords, separate multiple with commas... (Ctrl+K)" autofocus>
+      <select id="plantFilter">
+        <option value="all">All Plants</option>
+        <option value="3011">Plant 3011</option>
+        <option value="1021">Plant 1021</option>
+      </select>
+      <select id="fieldFilter">
+        <option value="all">All fields</option>
+        <option value="material">Material # only</option>
+        <option value="description">Description only</option>
+      </select>
+    </div>
+    <div id="multiPartPanel" class="search-panel">
+      <textarea id="multiPartInput" placeholder="Paste part numbers here (one per line)&#10;e.g. from an Excel column"></textarea>
+      <div class="panel-row">
+        <button class="btn-search" onclick="doMultiPartSearch()">Search</button>
+        <button class="btn-clear" onclick="clearMultiPart()">Clear</button>
+        <select id="plantFilterMulti">
+          <option value="all">All Plants</option>
+          <option value="3011">Plant 3011</option>
+          <option value="1021">Plant 1021</option>
+        </select>
+        <span id="multiPartCount"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-info">
+    <span id="resultCount"></span>
+    <span style="display:flex;gap:12px;align-items:center"><span id="searchTime"></span><button class="btn-export" onclick="exportCSV()" id="btnExport">Export CSV</button></span>
+  </div>
+
+  <div class="inflation-bar">
+    <label for="inflationPct">Inflation %:</label>
+    <input type="number" id="inflationPct" value="3" min="0" max="100" step="0.5">
+    <span class="hint">Applied per year since Last Cost Chg (items under $5,000 only). Blank dates auto-apply 10%. Values over $5,000 need Mfg and/or Sourcing to review.</span>
+  </div>
+
+  <div class="table-wrap">
+    <table id="resultsTable">
+      <thead><tr id="tableHead"></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- Data file generated by build-data.ps1 -->
+<script src="data.js"></script>
+
+<script>
+var PAGE_SIZE = 100;
+var DEBOUNCE_MS = 250;
+
+var STATUS_KEY = {
+  '05': 'Non-Sellable',
+  '06': 'Sellable',
+  '04': 'Test Part',
+  '07': 'Blocked For Sales',
+  '08': 'Obsolete',
+  '11': 'In Development',
+  '09': '?'
+};
+
+var MERGED_COLUMNS = [
+  { key: '_MaterialNum',       label: 'Material #' },
+  { key: '_MaterialDesc',      label: 'Description', wrap: true },
+  { key: 'Plant',              label: 'Plant', center: true },
+  { key: 'SalesOrganization',  label: 'Sales Org', center: true },
+  { key: 'MaterialStatus',     label: 'Status', center: true },
+  { key: 'FlashMessage',       label: 'Flash Msg', center: true },
+  { key: 'LeadTime',           label: 'Lead Time (Wks)', center: true },
+  { key: 'LastPriceChangeDate',label: 'Last Cost Chg', center: true },
+  { key: 'AverageMovingCost',  label: 'Avg Moving Cost', center: true, minW: 160 },
+  { key: '_InflationCost',     label: 'Inflation Cost', center: true, minW: 150 },
+  { key: 'Price',              label: 'Price', center: true, minW: 100 },
+  { key: 'Currency',           label: 'Currency', center: true }
+];
+
+var allData = [];
+var filtered = [];
+var currentPage = 1;
+var sortCol = null;
+var sortAsc = true;
+var searchMode = 'keyword';
+
+function switchTab(mode) {
+  searchMode = mode;
+  document.getElementById('tabKeyword').classList.toggle('active', mode === 'keyword');
+  document.getElementById('tabMultiPart').classList.toggle('active', mode === 'multipart');
+  document.getElementById('keywordPanel').classList.toggle('active', mode === 'keyword');
+  document.getElementById('multiPartPanel').classList.toggle('active', mode === 'multipart');
+  if (mode === 'keyword') {
+    doSearch();
+  } else {
+    doMultiPartSearch();
+  }
+}
+
+function doMultiPartSearch() {
+  var raw = document.getElementById('multiPartInput').value;
+  var lines = raw.split(/[\r\n\t]+/).map(function(s){return s.trim().toLowerCase().replace(/^0+/,'');}).filter(Boolean);
+  var plantVal = document.getElementById('plantFilterMulti').value;
+  var t0 = performance.now();
+
+  // Deduplicate
+  var partSet = {};
+  for (var i = 0; i < lines.length; i++) partSet[lines[i]] = true;
+  var uniqueParts = Object.keys(partSet);
+  document.getElementById('multiPartCount').textContent = uniqueParts.length ? uniqueParts.length + ' unique part(s)' : '';
+
+  filtered = [];
+  if (uniqueParts.length === 0) {
+    // Show all (filtered by plant)
+    for (var i = 0; i < allData.length; i++) {
+      if (plantVal !== 'all' && allData[i]._plant !== plantVal) continue;
+      filtered.push(allData[i]);
+    }
+  } else {
+    for (var i = 0; i < allData.length; i++) {
+      var row = allData[i];
+      if (plantVal !== 'all' && row._plant !== plantVal) continue;
+      var mat = (row._MaterialNum || '').toLowerCase().replace(/^0+/, '');
+      if (partSet[mat]) filtered.push(row);
+    }
+  }
+
+  var elapsed = ((performance.now() - t0)).toFixed(1);
+  document.getElementById('searchTime').textContent = 'Search: ' + elapsed + ' ms';
+  currentPage = 1;
+  sortCol = null;
+  renderPage();
+}
+
+function clearMultiPart() {
+  document.getElementById('multiPartInput').value = '';
+  document.getElementById('multiPartCount').textContent = '';
+  doMultiPartSearch();
+}
+
+function buildSPMap(dataArr) {
+  var map = {};
+  for (var i = 0; i < dataArr.length; i++) {
+    var mat = (dataArr[i][1] || '').replace(/^0+/, '');
+    if (!mat) continue;
+    if (!map[mat]) map[mat] = [];
+    map[mat].push({
+      SalesOrganization: dataArr[i][0] || '',
+      Price: dataArr[i][3] || '',
+      Currency: dataArr[i][4] || ''
+    });
+  }
+  return map;
+}
+
+function initData() {
+  // Build SP lookup maps by material (strip leading zeros for matching)
+  var sp3010Map = (typeof SP_3010_DATA !== 'undefined') ? buildSPMap(SP_3010_DATA) : {};
+  var sp1020Map = (typeof SP_1020_DATA !== 'undefined') ? buildSPMap(SP_1020_DATA) : {};
+  var spMaps = { '3011': sp3010Map, '1021': sp1020Map };
+
+  // Track which SP materials got matched
+  var matchedSP3010 = {};
+  var matchedSP1020 = {};
+  var matchedSets = { '3011': matchedSP3010, '1021': matchedSP1020 };
+
+  // Process each GK dataset
+  var gkSets = [];
+  if (typeof GK_3011_DATA !== 'undefined') gkSets.push(GK_3011_DATA);
+  if (typeof GK_1021_DATA !== 'undefined') gkSets.push(GK_1021_DATA);
+
+  for (var s = 0; s < gkSets.length; s++) {
+    var dataArr = gkSets[s];
+    for (var i = 0; i < dataArr.length; i++) {
+      var gk = {};
+      for (var c = 0; c < GK_COLS.length; c++) {
+        gk[GK_COLS[c]] = dataArr[i][c] || '';
+      }
+      var plant = gk.Plant || '';
+      var matKey = (gk.MaterialNumber || '').replace(/^0+/, '');
+      var spMap = spMaps[plant] || {};
+      var matched = matchedSets[plant] || {};
+      var spList = spMap[matKey];
+
+      if (spList && spList.length > 0) {
+        matched[matKey] = true;
+        for (var p = 0; p < spList.length; p++) {
+          var row = {};
+          for (var k in gk) row[k] = gk[k];
+          row.SalesOrganization = spList[p].SalesOrganization;
+          row.Price = spList[p].Price;
+          row.Currency = spList[p].Currency;
+          row._MaterialNum = gk.MaterialNumber || '';
+          row._MaterialDesc = gk.MaterialDescription || '';
+          row._plant = plant;
+          row._searchText = '';
+          for (var f in row) row._searchText += row[f] + ' ';
+          row._searchText = row._searchText.toLowerCase();
+          allData.push(row);
+        }
+      } else {
+        gk.SalesOrganization = '';
+        gk.Price = '';
+        gk.Currency = '';
+        gk._MaterialNum = gk.MaterialNumber || '';
+        gk._MaterialDesc = gk.MaterialDescription || '';
+        gk._plant = plant;
+        gk._searchText = '';
+        for (var f in gk) gk._searchText += gk[f] + ' ';
+        gk._searchText = gk._searchText.toLowerCase();
+        allData.push(gk);
+      }
+    }
+  }
+
+  // Add SP-only materials (no GK match)
+  var spSets = [
+    { data: (typeof SP_3010_DATA !== 'undefined') ? SP_3010_DATA : [], matched: matchedSP3010, plant: '3011' },
+    { data: (typeof SP_1020_DATA !== 'undefined') ? SP_1020_DATA : [], matched: matchedSP1020, plant: '1021' }
+  ];
+  for (var s = 0; s < spSets.length; s++) {
+    var set = spSets[s];
+    for (var i = 0; i < set.data.length; i++) {
+      var mat = (set.data[i][1] || '').replace(/^0+/, '');
+      if (set.matched[mat]) continue;
+      set.matched[mat] = true; // avoid duplicate SP-only rows
+      var row = {
+        Plant: set.plant,
+        MaterialNumber: set.data[i][1] || '',
+        MaterialDescription: set.data[i][2] || '',
+        MaterialStatus: '', TraceabilityRequired: '', FlashMessage: '',
+        LeadTime: '', LastPriceChangeDate: '', AverageMovingCost: '',
+        SalesOrganization: set.data[i][0] || '',
+        Price: set.data[i][3] || '',
+        Currency: set.data[i][4] || '',
+        _MaterialNum: set.data[i][1] || '',
+        _MaterialDesc: set.data[i][2] || '',
+        _plant: set.plant
+      };
+      row._searchText = '';
+      for (var f in row) row._searchText += row[f] + ' ';
+      row._searchText = row._searchText.toLowerCase();
+      allData.push(row);
+    }
+  }
+
+  // Free raw data arrays
+  if (typeof GK_3011_DATA !== 'undefined') GK_3011_DATA.length = 0;
+  if (typeof GK_1021_DATA !== 'undefined') GK_1021_DATA.length = 0;
+  if (typeof SP_3010_DATA !== 'undefined') SP_3010_DATA.length = 0;
+  if (typeof SP_1020_DATA !== 'undefined') SP_1020_DATA.length = 0;
+
+  filtered = allData;
+  document.getElementById('headerStatus').textContent = allData.length.toLocaleString() + ' records loaded';
+  document.getElementById('dataRefreshed').textContent = 'Cost & pricing data loaded: ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown');
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  buildTableHeader();
+  renderPage();
+}
+
+function buildTableHeader() {
+  var headRow = document.getElementById('tableHead');
+  headRow.innerHTML = '';
+  for (var i = 0; i < MERGED_COLUMNS.length; i++) {
+    var col = MERGED_COLUMNS[i];
+    var th = document.createElement('th');
+    th.textContent = col.label;
+    th.setAttribute('data-col', col.key);
+    if (col.center) th.style.textAlign = 'center';
+    if (col.minW) th.style.minWidth = col.minW + 'px';
+    if (i === 0) th.classList.add('sticky-col');
+    th.onclick = function() { sortBy(this.getAttribute('data-col')); };
+    if (sortCol === col.key) {
+      var arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = sortAsc ? ' \u25B2' : ' \u25BC';
+      th.appendChild(arrow);
+    }
+    // Add drag resizer to Description column
+    if (col.wrap) {
+      th.style.width = '300px';
+      th.style.minWidth = '300px';
+      th.style.maxWidth = '300px';
+      var resizer = document.createElement('div');
+      resizer.className = 'col-resizer';
+      resizer.addEventListener('mousedown', (function(thEl) {
+        return function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var startX = e.pageX;
+          var startW = thEl.offsetWidth;
+          function onMouseMove(ev) {
+            var newW = startW + (ev.pageX - startX);
+            if (newW < 80) newW = 80;
+            thEl.style.width = newW + 'px';
+            thEl.style.minWidth = newW + 'px';
+            thEl.style.maxWidth = newW + 'px';
+            // Apply same width to all body cells in this column
+            var colIdx = Array.prototype.indexOf.call(thEl.parentNode.children, thEl);
+            var rows = document.getElementById('tableBody').rows;
+            for (var r = 0; r < rows.length; r++) {
+              if (rows[r].cells[colIdx]) {
+                rows[r].cells[colIdx].style.width = newW + 'px';
+                rows[r].cells[colIdx].style.minWidth = newW + 'px';
+                rows[r].cells[colIdx].style.maxWidth = newW + 'px';
+              }
+            }
+          }
+          function onMouseUp() {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+          }
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        };
+      })(th));
+      th.appendChild(resizer);
+    }
+    headRow.appendChild(th);
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function highlightMatch(text, terms) {
+  if (!Array.isArray(terms)) terms = [terms];
+  var lower = text.toLowerCase();
+  // Find all match ranges
+  var ranges = [];
+  for (var t = 0; t < terms.length; t++) {
+    var pos = 0;
+    while ((pos = lower.indexOf(terms[t], pos)) !== -1) {
+      ranges.push([pos, pos + terms[t].length]);
+      pos += terms[t].length;
+    }
+  }
+  if (ranges.length === 0) return escapeHtml(text);
+  ranges.sort(function(a, b) { return a[0] - b[0]; });
+  var result = '';
+  var last = 0;
+  for (var r = 0; r < ranges.length; r++) {
+    var s = ranges[r][0], e = ranges[r][1];
+    if (s < last) s = last;
+    if (s >= e) continue;
+    result += escapeHtml(text.substring(last, s)) + '<mark>' + escapeHtml(text.substring(s, e)) + '</mark>';
+    last = e;
+  }
+  result += escapeHtml(text.substring(last));
+  return result;
+}
+
+function isDateStale(dateStr) {
+  if (!dateStr || dateStr.length !== 8) return false;
+  var y = parseInt(dateStr.substring(0, 4));
+  var m = parseInt(dateStr.substring(4, 6)) - 1;
+  var d = parseInt(dateStr.substring(6, 8));
+  var dt = new Date(y, m, d);
+  if (isNaN(dt.getTime())) return false;
+  var sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  return dt < sixMonthsAgo;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr || dateStr.length !== 8) return dateStr;
+  return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8) + '/' + dateStr.substring(0, 4);
+}
+
+function formatNumberWithCommas(value) {
+  if (value === null || value === undefined) return '';
+  var str = String(value).trim();
+  if (!str) return '';
+
+  var prefixMatch = str.match(/^[^0-9\-]*/);
+  var suffixMatch = str.match(/[^0-9]*$/);
+  var prefix = prefixMatch ? prefixMatch[0] : '';
+  var suffix = suffixMatch ? suffixMatch[0] : '';
+  var numeric = str.replace(/[^0-9.\-]/g, '');
+
+  if (!numeric || numeric === '-' || isNaN(Number(numeric))) return str;
+
+  var negative = numeric.charAt(0) === '-';
+  var unsigned = negative ? numeric.substring(1) : numeric;
+  var parts = unsigned.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  return prefix + (negative ? '-' : '') + parts[0] + (parts.length > 1 ? '.' + parts[1] : '') + suffix;
+}
+
+function calcInflationCost(row, pct) {
+  var cost = parseFloat((row.AverageMovingCost || '').replace(/[^0-9.\-]/g, ''));
+  if (isNaN(cost) || cost <= 0) return '';
+
+  // Only apply inflation to items under $5,000
+  if (cost >= 5000) return '';
+
+  var dateStr = (row.LastPriceChangeDate || '').trim();
+
+  // Blank date: flat 10% regardless of input pct
+  if (!dateStr || dateStr.length !== 8) {
+    return (cost * 1.10).toFixed(2);
+  }
+
+  var y = parseInt(dateStr.substring(0, 4));
+  var m = parseInt(dateStr.substring(4, 6)) - 1;
+  var d = parseInt(dateStr.substring(6, 8));
+  var dt = new Date(y, m, d);
+  if (isNaN(dt.getTime())) return (cost * 1.10).toFixed(2);
+
+  var now = new Date();
+  var msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+  var years = (now - dt) / msPerYear;
+  if (years < 0) years = 0;
+
+  var rate = pct / 100;
+  var result = cost * Math.pow(1 + rate, years);
+  return result.toFixed(2);
+}
+
+function renderPage() {
+  var tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  var start = (currentPage - 1) * PAGE_SIZE;
+  var end = Math.min(start + PAGE_SIZE, filtered.length);
+  var rawQ = document.getElementById('searchInput').value.trim().toLowerCase();
+  var terms = rawQ ? rawQ.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+  var inflPct = parseFloat(document.getElementById('inflationPct').value) || 0;
+
+  for (var i = start; i < end; i++) {
+    var row = filtered[i];
+    var tr = document.createElement('tr');
+    if (row.MaterialStatus === '08') tr.classList.add('row-obsolete');
+    for (var j = 0; j < MERGED_COLUMNS.length; j++) {
+      var col = MERGED_COLUMNS[j];
+      var td = document.createElement('td');
+      if (col.wrap) td.classList.add('wrap-cell');
+      if (col.center) td.style.textAlign = 'center';
+      if (col.minW) td.style.minWidth = col.minW + 'px';
+      if (j === 0) td.classList.add('sticky-col');
+      var val = row[col.key] || '';
+      if (col.key === 'LastPriceChangeDate') val = formatDate(val);
+      if (col.key === 'MaterialStatus' && STATUS_KEY[val]) val = STATUS_KEY[val];
+      if (col.key === 'AverageMovingCost' && parseFloat((val || '').replace(/[^0-9.\-]/g, '')) === 0) val = '';
+      if (col.key === '_InflationCost') val = calcInflationCost(row, inflPct);
+      if (col.key === 'Price' || col.key === 'AverageMovingCost' || col.key === '_InflationCost') val = formatNumberWithCommas(val);
+      var hasMatch = terms.length > 0 && terms.some(function(t){ return val.toLowerCase().indexOf(t) !== -1; });
+      if (col.key === 'AverageMovingCost') {
+        if (hasMatch) {
+          td.innerHTML = highlightMatch(val, terms);
+        } else {
+          td.textContent = val;
+        }
+      } else if (col.key === 'LastPriceChangeDate' && (isDateStale(row.LastPriceChangeDate) || !row.LastPriceChangeDate.trim())) {
+        td.classList.add('cost-stale');
+        td.textContent = val;
+      } else if (hasMatch) {
+        td.innerHTML = highlightMatch(val, terms);
+      } else {
+        td.textContent = val;
+      }
+      if (col.wrap) td.classList.add('wrap-cell');
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('resultCount').textContent =
+    filtered.length === 0 ? 'No results found' :
+    'Showing ' + (start + 1) + '\u2013' + end + ' of ' + filtered.length.toLocaleString() + ' results';
+  renderPagination();
+}
+
+function renderPagination() {
+  var container = document.getElementById('pagination');
+  container.innerHTML = '';
+  var totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  if (totalPages <= 1) return;
+
+  function addBtn(label, page, disabled, active) {
+    var btn = document.createElement('button');
+    btn.textContent = label;
+    btn.disabled = disabled;
+    if (active) btn.className = 'active';
+    btn.setAttribute('data-page', page);
+    btn.onclick = function() {
+      currentPage = parseInt(this.getAttribute('data-page'));
+      renderPage();
+      window.scrollTo(0, 0);
+    };
+    container.appendChild(btn);
+  }
+
+  addBtn('\u00AB Prev', currentPage - 1, currentPage === 1, false);
+  var startP = Math.max(1, currentPage - 3);
+  var endP = Math.min(totalPages, currentPage + 3);
+  if (startP > 1) {
+    addBtn('1', 1, false, currentPage === 1);
+    if (startP > 2) { var d = document.createElement('span'); d.textContent = '\u2026'; container.appendChild(d); }
+  }
+  for (var p = startP; p <= endP; p++) addBtn(p, p, false, p === currentPage);
+  if (endP < totalPages) {
+    if (endP < totalPages - 1) { var d = document.createElement('span'); d.textContent = '\u2026'; container.appendChild(d); }
+    addBtn(totalPages, totalPages, false, currentPage === totalPages);
+  }
+  addBtn('Next \u00BB', currentPage + 1, currentPage === totalPages, false);
+}
+
+// ---- Search ----
+var debounceTimer;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(doSearch, DEBOUNCE_MS);
+});
+document.getElementById('plantFilter').addEventListener('change', doSearch);
+document.getElementById('fieldFilter').addEventListener('change', doSearch);
+document.getElementById('plantFilterMulti').addEventListener('change', function() {
+  if (searchMode === 'multipart') doMultiPartSearch();
+});
+document.getElementById('inflationPct').addEventListener('input', function() {
+  renderPage();
+});
+
+function doSearch() {
+  var rawQ = document.getElementById('searchInput').value.trim().toLowerCase();
+  var terms = rawQ ? rawQ.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+  var plantVal = document.getElementById('plantFilter').value;
+  var field  = document.getElementById('fieldFilter').value;
+  var t0 = performance.now();
+
+  filtered = [];
+  for (var i = 0; i < allData.length; i++) {
+    var row = allData[i];
+    if (plantVal !== 'all' && row._plant !== plantVal) continue;
+    if (terms.length === 0) { filtered.push(row); continue; }
+    var matched = false;
+    for (var t = 0; t < terms.length; t++) {
+      var q = terms[t];
+      if (field === 'material') {
+        if ((row._MaterialNum || '').toLowerCase().indexOf(q) !== -1) { matched = true; break; }
+      } else if (field === 'description') {
+        if ((row._MaterialDesc || '').toLowerCase().indexOf(q) !== -1) { matched = true; break; }
+      } else {
+        if (row._searchText.indexOf(q) !== -1) { matched = true; break; }
+      }
+    }
+    if (matched) filtered.push(row);
+  }
+
+  var elapsed = ((performance.now() - t0)).toFixed(1);
+  document.getElementById('searchTime').textContent = 'Search: ' + elapsed + ' ms';
+  currentPage = 1;
+  sortCol = null;
+  renderPage();
+}
+
+// ---- Sorting ----
+function sortBy(colKey) {
+  if (sortCol === colKey) { sortAsc = !sortAsc; }
+  else { sortCol = colKey; sortAsc = true; }
+  filtered.sort(function(a, b) {
+    var va = (a[colKey] || '').toLowerCase();
+    var vb = (b[colKey] || '').toLowerCase();
+    var na = parseFloat(va.replace(/[^0-9.\-]/g, ''));
+    var nb = parseFloat(vb.replace(/[^0-9.\-]/g, ''));
+    if (!isNaN(na) && !isNaN(nb)) return sortAsc ? na - nb : nb - na;
+    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  buildTableHeader();
+  currentPage = 1;
+  renderPage();
+}
+
+// ---- Keyboard shortcut ----
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+// ---- Export CSV ----
+function exportCSV() {
+  if (filtered.length === 0) return;
+  var inflPct = parseFloat(document.getElementById('inflationPct').value) || 0;
+  var cols = MERGED_COLUMNS;
+  var csvRows = [];
+  // Data loaded date
+  csvRows.push('"Cost & pricing data loaded: ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown') + '"');
+  csvRows.push('');
+  // Header
+  csvRows.push(cols.map(function(c){ return '"' + c.label + '"'; }).join(','));
+  // Data rows
+  for (var i = 0; i < filtered.length; i++) {
+    var row = filtered[i];
+    var cells = [];
+    for (var j = 0; j < cols.length; j++) {
+      var val = row[cols[j].key] || '';
+      if (cols[j].key === 'LastPriceChangeDate') val = formatDate(val);
+      if (cols[j].key === 'MaterialStatus' && STATUS_KEY[val]) val = STATUS_KEY[val];
+      if (cols[j].key === 'AverageMovingCost' && parseFloat((val || '').replace(/[^0-9.\-]/g, '')) === 0) val = '';
+      if (cols[j].key === '_InflationCost') val = calcInflationCost(row, inflPct);
+      if (cols[j].key === 'Price' || cols[j].key === 'AverageMovingCost' || cols[j].key === '_InflationCost') val = formatNumberWithCommas(val);
+      cells.push('"' + val.replace(/"/g, '""') + '"');
+    }
+    csvRows.push(cells.join(','));
+  }
+  var blob = new Blob([csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'search_results_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Start ----
+window.addEventListener('load', function() { setTimeout(initData, 50); });
+</script>
+</body>
+</html>
