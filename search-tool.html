@@ -36,6 +36,42 @@
   }
   header h1 { font-size: 20px; font-weight: 600; }
   header .status { font-size: 13px; opacity: .85; margin-left: auto; }
+  header .mood-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding-left: 16px;
+    border-left: 1px solid rgba(255,255,255,.3);
+  }
+  header .mood-box h3 {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: .9;
+  }
+  header .mood-buttons {
+    display: flex;
+    gap: 6px;
+  }
+  header .mood-btn {
+    padding: 6px 12px;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 20px;
+    color: #fff;
+    transition: all .2s;
+    white-space: nowrap;
+  }
+  header .mood-btn:hover {
+    background: rgba(255,255,255,.25);
+    border-color: rgba(255,255,255,.4);
+  }
+  header .mood-btn:active {
+    background: rgba(255,255,255,.35);
+  }
 
   .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
 
@@ -198,6 +234,14 @@
     resize: vertical;
   }
   #multiPartPanel textarea:focus { border-color: var(--primary); }
+  #multiPartPanel textarea.drop-active {
+    border-color: var(--primary);
+    background: #eef6ff;
+  }
+  #multiPartPanel .drop-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
   #multiPartPanel .panel-row {
     display: flex;
     gap: 12px;
@@ -215,7 +259,8 @@
     font-weight: 600;
   }
   #multiPartPanel .btn-search:hover { background: var(--primary-dark); }
-  #multiPartPanel .btn-clear {
+  #multiPartPanel .btn-clear,
+  #keywordPanel .btn-clear {
     padding: 8px 16px;
     background: var(--card);
     color: var(--text-muted);
@@ -300,6 +345,8 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .hidden { display: none !important; }
+
+
 </style>
 </head>
 <body>
@@ -311,6 +358,16 @@
 
 <header>
   <h1>CPL Search</h1>
+  <div class="mood-box">
+    <h3>How are you doing?</h3>
+    <div class="mood-buttons">
+      <button class="mood-btn" onclick="showMoodMessage('happy')" title="Glad things are going well!">😊</button>
+      <button class="mood-btn" onclick="showMoodMessage('tired')" title="Rest up when you can. You'll feel better after a break">😴</button>
+      <button class="mood-btn" onclick="showMoodMessage('bored')" title="Ask Priscilla if she needs help.">😑</button>
+      <button class="mood-btn" onclick="showMoodMessage('sad')" title="You deserve some kindness today. Be gentle with yourself.">😢</button>
+    </div>
+    <span id="moodMessage" style="font-size:13px;opacity:.95;font-style:italic;max-width:260px;display:none;"></span>
+  </div>
   <span class="status" id="headerStatus">Loading...</span>
 </header>
 
@@ -324,19 +381,16 @@
   <div class="search-bar">
     <div id="keywordPanel" class="search-panel active">
       <input type="text" id="searchInput" placeholder="Search keywords, separate multiple with commas... (Ctrl+K)" autofocus>
+      <button class="btn-clear" onclick="clearKeywordSearch()">Clear</button>
       <select id="plantFilter">
         <option value="all">All Plants</option>
         <option value="3011">Plant 3011</option>
         <option value="1021">Plant 1021</option>
       </select>
-      <select id="fieldFilter">
-        <option value="all">All fields</option>
-        <option value="material">Material # only</option>
-        <option value="description">Description only</option>
-      </select>
     </div>
     <div id="multiPartPanel" class="search-panel">
       <textarea id="multiPartInput" placeholder="Paste part numbers here (one per line)&#10;e.g. from an Excel column"></textarea>
+      <div class="drop-hint">Tip: You can drag and drop a .txt or .csv file here.</div>
       <div class="panel-row">
         <button class="btn-search" onclick="doMultiPartSearch()">Search</button>
         <button class="btn-clear" onclick="clearMultiPart()">Clear</button>
@@ -378,6 +432,21 @@
 // Load data from compressed zip or uncompressed JS
 function initializeApp() {
   setTimeout(function() { initData(); }, 50);
+}
+
+// Mood emoji box messages
+var moodMessages = {
+  'happy': 'Glad things are going well!',
+  'tired': 'Rest up when you can. You\'ll feel better after a break',
+  'bored': 'Ask Priscilla if she needs help.',
+  'sad': 'You deserve some kindness today. Be gentle with yourself.'
+};
+
+function showMoodMessage(mood) {
+  var message = moodMessages[mood] || 'Thank you for sharing!';
+  var el = document.getElementById('moodMessage');
+  el.textContent = message;
+  el.style.display = 'inline';
 }
 
 function loadDataFile() {
@@ -499,6 +568,48 @@ function clearMultiPart() {
   document.getElementById('multiPartInput').value = '';
   document.getElementById('multiPartCount').textContent = '';
   doMultiPartSearch();
+}
+
+function parsePartsFromText(text) {
+  // Accept one part per line, or first CSV value per line.
+  var lines = text.split(/\r?\n/);
+  var parts = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = (lines[i] || '').trim();
+    if (!line) continue;
+    if (line.indexOf(',') !== -1) {
+      line = line.split(',')[0].trim();
+    }
+    parts.push(line);
+  }
+  return parts;
+}
+
+function loadMultiPartFile(file) {
+  if (!file) return;
+  var name = (file.name || '').toLowerCase();
+  if (!(name.endsWith('.txt') || name.endsWith('.csv'))) {
+    alert('Please drop a .txt or .csv file.');
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = String(e.target.result || '');
+    var parts = parsePartsFromText(text);
+    document.getElementById('multiPartInput').value = parts.join('\n');
+    doMultiPartSearch();
+  };
+  reader.onerror = function() {
+    alert('Unable to read the file.');
+  };
+  reader.readAsText(file);
+}
+
+function clearKeywordSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('plantFilter').value = 'all';
+  doSearch();
 }
 
 function buildSPMap(dataArr) {
@@ -920,9 +1031,24 @@ document.getElementById('searchInput').addEventListener('input', function() {
   debounceTimer = setTimeout(doSearch, DEBOUNCE_MS);
 });
 document.getElementById('plantFilter').addEventListener('change', doSearch);
-document.getElementById('fieldFilter').addEventListener('change', doSearch);
 document.getElementById('plantFilterMulti').addEventListener('change', function() {
   if (searchMode === 'multipart') doMultiPartSearch();
+});
+var multiPartInputEl = document.getElementById('multiPartInput');
+multiPartInputEl.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  multiPartInputEl.classList.add('drop-active');
+});
+multiPartInputEl.addEventListener('dragleave', function() {
+  multiPartInputEl.classList.remove('drop-active');
+});
+multiPartInputEl.addEventListener('drop', function(e) {
+  e.preventDefault();
+  multiPartInputEl.classList.remove('drop-active');
+  var files = e.dataTransfer ? e.dataTransfer.files : null;
+  if (files && files.length > 0) {
+    loadMultiPartFile(files[0]);
+  }
 });
 document.getElementById('inflationPct').addEventListener('input', function() {
   renderPage();
@@ -932,7 +1058,6 @@ function doSearch() {
   var rawQ = document.getElementById('searchInput').value.trim().toLowerCase();
   var terms = rawQ ? rawQ.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
   var plantVal = document.getElementById('plantFilter').value;
-  var field  = document.getElementById('fieldFilter').value;
   var t0 = performance.now();
 
   filtered = [];
@@ -943,13 +1068,7 @@ function doSearch() {
     var matched = false;
     for (var t = 0; t < terms.length; t++) {
       var q = terms[t];
-      if (field === 'material') {
-        if ((row._MaterialNum || '').toLowerCase().indexOf(q) !== -1) { matched = true; break; }
-      } else if (field === 'description') {
-        if ((row._MaterialDesc || '').toLowerCase().indexOf(q) !== -1) { matched = true; break; }
-      } else {
-        if (row._searchText.indexOf(q) !== -1) { matched = true; break; }
-      }
+      if (row._searchText.indexOf(q) !== -1) { matched = true; break; }
     }
     if (matched) filtered.push(row);
   }
