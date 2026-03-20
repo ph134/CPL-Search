@@ -72,6 +72,85 @@
   header .mood-btn:active {
     background: rgba(255,255,255,.35);
   }
+  .btn-suggestion {
+    padding: 7px 14px;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    transition: all .2s;
+    margin-left: 16px;
+  }
+  .btn-suggestion:hover { background: rgba(255,255,255,.25); }
+
+  /* --- Suggestion modal --- */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 10px;
+    padding: 28px;
+    width: 480px;
+    max-width: 95vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  }
+  .modal-box h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .modal-box p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+  .modal-box textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 10px 14px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+  }
+  .modal-box textarea:focus { border-color: var(--primary); }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .modal-actions .btn-cancel {
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .modal-actions .btn-send {
+    padding: 8px 20px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .modal-actions .btn-send:hover { background: var(--primary-dark); }
 
   .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
 
@@ -368,8 +447,22 @@
     </div>
     <span id="moodMessage" style="font-size:13px;opacity:.95;font-style:italic;max-width:260px;display:none;"></span>
   </div>
+  <button class="btn-suggestion" onclick="openSuggestion()">&#128161; Suggestion</button>
   <span class="status" id="headerStatus">Loading...</span>
 </header>
+
+<!-- Suggestion Modal -->
+<div class="modal-overlay hidden" id="suggestionModal">
+  <div class="modal-box">
+    <h2>&#128161; Send a Suggestion</h2>
+    <p>Your feedback goes directly to Priscilla. Share ideas, improvements, or anything on your mind!</p>
+    <textarea id="suggestionText" placeholder="Type your suggestion here..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSuggestion()">Cancel</button>
+      <button class="btn-send" onclick="sendSuggestion()">Send Email</button>
+    </div>
+  </div>
+</div>
 
 <div style="text-align:right;font-size:12px;color:#586069;padding:6px 24px 0;max-width:1400px;margin:0 auto;" id="dataRefreshed"></div>
 
@@ -447,6 +540,23 @@ function showMoodMessage(mood) {
   var el = document.getElementById('moodMessage');
   el.textContent = message;
   el.style.display = 'inline';
+}
+
+function openSuggestion() {
+  document.getElementById('suggestionText').value = '';
+  document.getElementById('suggestionModal').classList.remove('hidden');
+  document.getElementById('suggestionText').focus();
+}
+function closeSuggestion() {
+  document.getElementById('suggestionModal').classList.add('hidden');
+}
+function sendSuggestion() {
+  var text = document.getElementById('suggestionText').value.trim();
+  if (!text) { alert('Please enter a suggestion before sending.'); return; }
+  var subject = encodeURIComponent('CPL Search Tool - Suggestion');
+  var body = encodeURIComponent(text);
+  window.location.href = 'mailto:priscilla.blythe@hmhw.com?subject=' + subject + '&body=' + body;
+  closeSuggestion();
 }
 
 function loadDataFile() {
