@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPL Search Tool</title>
+<title>CPL Search</title>
 <style>
   :root {
     --primary: #0078d4;
@@ -307,7 +307,7 @@
 </div>
 
 <header>
-  <h1>CPL Search Tool</h1>
+  <h1>CPL Search</h1>
   <span class="status" id="headerStatus">Loading...</span>
 </header>
 
@@ -355,7 +355,7 @@
   <div class="inflation-bar">
     <label for="inflationPct">Inflation %:</label>
     <input type="number" id="inflationPct" value="3" min="0" max="100" step="0.5">
-    <span class="hint">Applied per year since Last Cost Chg (items under $5,000 only). Blank dates auto-apply 10%. Values over $5,000 need Mfg and/or Sourcing to review.</span>
+    <span class="hint">Applied per year since Last Cost Chg (items under $5,000 only). Blank dates auto-apply 30%. Values over $5,000 need Mfg and/or Sourcing to review.</span>
   </div>
 
   <div class="table-wrap">
@@ -728,7 +728,7 @@ function formatDate(dateStr) {
   return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8) + '/' + dateStr.substring(0, 4);
 }
 
-function formatNumberWithCommas(value) {
+function formatNumberWithCommas(value, forceDecimals) {
   if (value === null || value === undefined) return '';
   var str = String(value).trim();
   if (!str) return '';
@@ -743,6 +743,12 @@ function formatNumberWithCommas(value) {
 
   var negative = numeric.charAt(0) === '-';
   var unsigned = negative ? numeric.substring(1) : numeric;
+
+  // Normalise to exactly 2 decimal places when requested
+  if (forceDecimals) {
+    unsigned = parseFloat(unsigned).toFixed(2);
+  }
+
   var parts = unsigned.split('.');
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
@@ -758,16 +764,16 @@ function calcInflationCost(row, pct) {
 
   var dateStr = (row.LastPriceChangeDate || '').trim();
 
-  // Blank date: flat 10% regardless of input pct
+  // Blank date: flat 30% regardless of input pct
   if (!dateStr || dateStr.length !== 8) {
-    return (cost * 1.10).toFixed(2);
+    return (cost * 1.30).toFixed(2);
   }
 
   var y = parseInt(dateStr.substring(0, 4));
   var m = parseInt(dateStr.substring(4, 6)) - 1;
   var d = parseInt(dateStr.substring(6, 8));
   var dt = new Date(y, m, d);
-  if (isNaN(dt.getTime())) return (cost * 1.10).toFixed(2);
+  if (isNaN(dt.getTime())) return (cost * 1.30).toFixed(2);
 
   var now = new Date();
   var msPerYear = 365.25 * 24 * 60 * 60 * 1000;
@@ -804,7 +810,7 @@ function renderPage() {
       if (col.key === 'MaterialStatus' && STATUS_KEY[val]) val = STATUS_KEY[val];
       if (col.key === 'AverageMovingCost' && parseFloat((val || '').replace(/[^0-9.\-]/g, '')) === 0) val = '';
       if (col.key === '_InflationCost') val = calcInflationCost(row, inflPct);
-      if (col.key === 'Price' || col.key === 'AverageMovingCost' || col.key === '_InflationCost') val = formatNumberWithCommas(val);
+      if (col.key === 'Price' || col.key === 'AverageMovingCost' || col.key === '_InflationCost') val = formatNumberWithCommas(val, true);
       var hasMatch = terms.length > 0 && terms.some(function(t){ return val.toLowerCase().indexOf(t) !== -1; });
       if (col.key === 'AverageMovingCost') {
         if (hasMatch) {
@@ -961,7 +967,7 @@ function exportCSV() {
       if (cols[j].key === 'MaterialStatus' && STATUS_KEY[val]) val = STATUS_KEY[val];
       if (cols[j].key === 'AverageMovingCost' && parseFloat((val || '').replace(/[^0-9.\-]/g, '')) === 0) val = '';
       if (cols[j].key === '_InflationCost') val = calcInflationCost(row, inflPct);
-      if (cols[j].key === 'Price' || cols[j].key === 'AverageMovingCost' || cols[j].key === '_InflationCost') val = formatNumberWithCommas(val);
+      if (cols[j].key === 'Price' || cols[j].key === 'AverageMovingCost' || cols[j].key === '_InflationCost') val = formatNumberWithCommas(val, true);
       cells.push('"' + val.replace(/"/g, '""') + '"');
     }
     csvRows.push(cells.join(','));
