@@ -28,7 +28,7 @@
     padding: 16px 24px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,.12);
     position: sticky;
     top: 0;
@@ -36,11 +36,17 @@
   }
   header h1 { font-size: 20px; font-weight: 600; }
   header .status { font-size: 13px; opacity: .85; margin-left: auto; }
+  header .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    min-width: 0;
+  }
   header .mood-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto;
     padding-left: 16px;
     border-left: 1px solid rgba(255,255,255,.3);
   }
@@ -86,6 +92,42 @@
     margin-left: 16px;
   }
   .btn-suggestion:hover { background: rgba(255,255,255,.25); }
+
+  @media (max-width: 1200px) {
+    header {
+      flex-wrap: wrap;
+      align-items: flex-start;
+      row-gap: 8px;
+    }
+    header .header-tools {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header .status {
+      order: 2;
+      margin-left: 0;
+    }
+    header .mood-box {
+      padding-left: 0;
+      border-left: none;
+    }
+    .btn-suggestion {
+      margin-left: 0;
+    }
+  }
+
+  @media (max-width: 700px) {
+    header .mood-box {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    header .mood-message {
+      width: 100%;
+    }
+  }
 
   /* --- Suggestion modal --- */
   .modal-overlay {
@@ -437,17 +479,20 @@
 
 <header>
   <h1>CPL Search</h1>
-  <div class="mood-box">
-    <h3>How are you doing?</h3>
-    <div class="mood-buttons">
-      <button class="mood-btn" onclick="showMoodMessage('happy')" title="Glad things are going well!">😊</button>
-      <button class="mood-btn" onclick="showMoodMessage('tired')" title="Rest up when you can. You'll feel better after a break">😴</button>
-      <button class="mood-btn" onclick="showMoodMessage('bored')" title="Ask Priscilla if she needs help.">😑</button>
-      <button class="mood-btn" onclick="showMoodMessage('sad')" title="You deserve some kindness today. Be gentle with yourself.">😢</button>
+  <div class="header-tools">
+    <button class="btn-suggestion" onclick="openUserGuide()">&#128214; User Guide</button>
+    <div class="mood-box">
+      <h3>How are you doing?</h3>
+      <div class="mood-buttons">
+        <button class="mood-btn" onclick="showMoodMessage('happy')" title="Glad things are going well!">😊</button>
+        <button class="mood-btn" onclick="showMoodMessage('tired')" title="Rest up when you can. You'll feel better after a break">😴</button>
+        <button class="mood-btn" onclick="showMoodMessage('bored')" title="Ask Priscilla if she needs help.">😑</button>
+        <button class="mood-btn" onclick="showMoodMessage('sad')" title="You deserve some kindness today. Be gentle with yourself.">😢</button>
+      </div>
+      <span class="mood-message" id="moodMessage" style="font-size:13px;opacity:.95;font-style:italic;max-width:260px;display:none;"></span>
     </div>
-    <span id="moodMessage" style="font-size:13px;opacity:.95;font-style:italic;max-width:260px;display:none;"></span>
+    <button class="btn-suggestion" onclick="openSuggestion()">&#128161; Suggestion</button>
   </div>
-  <button class="btn-suggestion" onclick="openSuggestion()">&#128161; Suggestion</button>
   <span class="status" id="headerStatus">Loading...</span>
 </header>
 
@@ -540,6 +585,10 @@ function showMoodMessage(mood) {
   var el = document.getElementById('moodMessage');
   el.textContent = message;
   el.style.display = 'inline';
+}
+
+function openUserGuide() {
+  window.open('CPL Search - User Guide.docx');
 }
 
 function openSuggestion() {
@@ -869,7 +918,7 @@ function initData() {
   allData = dedupeRowsPreferCost(allData);
   filtered = allData;
   document.getElementById('headerStatus').textContent = allData.length.toLocaleString() + ' records loaded';
-  document.getElementById('dataRefreshed').innerHTML = '<strong>Cost &amp; pricing data loaded:</strong> ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown');
+  document.getElementById('dataRefreshed').innerHTML = '<strong>SAP data loaded:</strong> ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown');
   document.getElementById('loadingOverlay').classList.add('hidden');
   buildTableHeader();
   renderPage();
@@ -1222,7 +1271,7 @@ function exportCSV() {
   var cols = MERGED_COLUMNS;
   var csvRows = [];
   // Data loaded date
-  csvRows.push('"Cost & pricing data loaded: ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown') + '"');
+  csvRows.push('"SAP data loaded: ' + (typeof DATA_BUILD_DATE !== 'undefined' ? DATA_BUILD_DATE : 'Unknown') + '"');
   csvRows.push('');
   // Header
   csvRows.push(cols.map(function(c){ return '"' + c.label + '"'; }).join(','));
