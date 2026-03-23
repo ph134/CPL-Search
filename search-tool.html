@@ -694,10 +694,15 @@ function doMultiPartSearch() {
   var plantVal = document.getElementById('plantFilterMulti').value;
   var t0 = performance.now();
 
-  // Deduplicate
+  // Deduplicate while preserving the entered order.
   var partSet = {};
-  for (var i = 0; i < lines.length; i++) partSet[lines[i]] = true;
-  var uniqueParts = Object.keys(partSet);
+  var uniqueParts = [];
+  for (var i = 0; i < lines.length; i++) {
+    if (!partSet[lines[i]]) {
+      partSet[lines[i]] = true;
+      uniqueParts.push(lines[i]);
+    }
+  }
   document.getElementById('multiPartCount').textContent = uniqueParts.length ? uniqueParts.length + ' unique part(s)' : '';
 
   filtered = [];
@@ -708,11 +713,21 @@ function doMultiPartSearch() {
       filtered.push(allData[i]);
     }
   } else {
+    var buckets = {};
     for (var i = 0; i < allData.length; i++) {
       var row = allData[i];
       if (plantVal !== 'all' && row._plant !== plantVal) continue;
       var mat = (row._MaterialNum || '').toLowerCase().replace(/^0+/, '');
-      if (partSet[mat]) filtered.push(row);
+      if (!partSet[mat]) continue;
+      if (!buckets[mat]) buckets[mat] = [];
+      buckets[mat].push(row);
+    }
+
+    // Emit matches in the same order as the entered/search list.
+    for (var j = 0; j < uniqueParts.length; j++) {
+      var part = uniqueParts[j];
+      var rows = buckets[part] || [];
+      for (var k = 0; k < rows.length; k++) filtered.push(rows[k]);
     }
   }
 
